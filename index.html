@@ -23,7 +23,11 @@ h1{font-size:24px;line-height:1.05;margin:0;font-weight:800;letter-spacing:-.03e
 .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:var(--shadow);margin-bottom:12px}
 .segment{display:grid;grid-template-columns:1fr 1fr;background:var(--panel2);border:1px solid var(--line);padding:4px;border-radius:13px;gap:4px}
 .segment button{border:0;border-radius:9px;padding:11px 12px;background:transparent;color:var(--muted);font-weight:750}
-.segment button.active{background:var(--text);color:#111317;box-shadow:inset 0 0 0 2px rgba(17,19,23,.18)}
+.segment button.active{box-shadow:inset 0 0 0 2px rgba(17,19,23,.18)}
+.segment button[data-mode="standard"].active{background:#ff8a00;color:#111317}
+.segment button[data-mode="fast"].active{background:#39ff14;color:#111317}
+.segment button[data-pf="minor"].active{background:var(--text);color:#111317}
+.segment button[data-pf="major"].active{background:#111317;color:#ffffff;border:1px solid #ffffff}
 .segment button:focus-visible,.actions button:focus-visible,.ghost:focus-visible,input:focus-visible{outline:3px solid #ffffff;outline-offset:2px}
 .scorebox.invalid,.field.invalid{border-color:var(--danger);box-shadow:0 0 0 2px rgba(255,107,107,.14)}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -78,7 +82,7 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
   <header>
     <div>
       <h1>USPSA Hit Factor</h1>
-      <div class="version">Functional prototype · v0.3</div>
+      <div class="version">Functional prototype · v0.4</div>
     </div>
   </header>
 
@@ -92,7 +96,7 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
     <div class="label">Power factor</div>
     <div class="segment" id="pfSeg">
       <button data-pf="minor" class="active">Minor</button>
-      <button data-pf="major">Major</button>
+      <button data-pf="major">MAJOR</button>
     </div>
   </section>
 
@@ -101,6 +105,14 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
     <div class="field">
       <input id="maxHits" inputmode="numeric" pattern="[0-9]*" value="20" aria-label="Maximum scoring hits">
       <small>Maximum scoring hits · persists between shooters</small>
+    </div>
+  </section>
+
+  <section class="card" id="timeCard">
+    <div class="label">Time</div>
+    <div class="field">
+      <input id="time" inputmode="numeric" pattern="[0-9]*" placeholder="0.00" aria-label="Time in seconds">
+      <small>Enter digits only · 1842 becomes 18.42</small>
     </div>
   </section>
 
@@ -137,12 +149,6 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
       </div>
     </div>
 
-    <div style="height:12px"></div>
-    <div class="label">Time</div>
-    <div class="field">
-      <input id="time" inputmode="numeric" pattern="[0-9]*" placeholder="0.00" aria-label="Time in seconds">
-      <small>Enter digits only · 1842 becomes 18.42</small>
-    </div>
 
     <div id="notice" class="notice"></div>
   </section>
@@ -165,10 +171,13 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
   <section class="card">
     <div class="actions">
       <button class="primary" id="nextBtn">Next Shooter</button>
-      <button class="secondary" id="resetBtn">Reset Run</button>
+      <button class="secondary" id="resetBtn">Reset Current Run</button>
     </div>
     <div style="height:9px"></div>
-    <button class="secondary" id="newDrillBtn" style="width:100%">New Drill</button>
+    <button class="secondary" id="newDrillBtn" style="width:100%">Start New Drill</button>
+    <div style="margin-top:7px;text-align:center;color:var(--muted);font-size:11px">
+      Reset Current Run keeps drill setup · Start New Drill resets drill setup
+    </div>
   </section>
 
   <section class="card">
@@ -436,10 +445,15 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
   }
 
   function newDrill() {
-    $('maxHits').value = '20';
     setPF('minor');
     setMode('fast');
-    clearRun(true);
+    $('maxHits').value = '';
+    clearRun(false);
+    calc();
+    setTimeout(() => {
+      $('maxHits').focus();
+      try { $('maxHits').select(); } catch (e) {}
+    }, 0);
   }
 
   function saveRun() {
