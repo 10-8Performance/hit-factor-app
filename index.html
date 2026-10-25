@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111317">
+<title>USPSA Hit Factor — Prototype</title>
+<style>
+:root{
+  --bg:#0d0f12; --panel:#15181d; --panel2:#1c2026; --text:#f4f6f8; --muted:#9da6b1;
+  --line:#2b3139; --accent:#f2f4f7; --danger:#ff6b6b; --good:#7ee787;
+  --shadow:0 14px 40px rgba(0,0,0,.28);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+body{min-height:100vh}
+button,input{font:inherit}
+button{-webkit-tap-highlight-color:transparent}
+.app{max-width:760px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top)) 14px calc(28px + env(safe-area-inset-bottom))}
+header{display:flex;justify-content:space-between;align-items:end;gap:12px;margin:4px 2px 16px}
+h1{font-size:24px;line-height:1.05;margin:0;font-weight:800;letter-spacing:-.03em}
+.version{font-size:12px;color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:var(--shadow);margin-bottom:12px}
+.segment{display:grid;grid-template-columns:1fr 1fr;background:var(--panel2);border:1px solid var(--line);padding:4px;border-radius:13px;gap:4px}
+.segment button{border:0;border-radius:9px;padding:11px 12px;background:transparent;color:var(--muted);font-weight:750}
+.segment button.active{background:var(--text);color:#111317}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.label{font-size:12px;color:var(--muted);font-weight:750;letter-spacing:.08em;text-transform:uppercase;margin:2px 0 7px}
+.field{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.field input{width:100%;border:0;outline:0;background:transparent;color:var(--text);font-size:30px;font-weight:800;line-height:1.2;text-align:center}
+.field small{display:block;text-align:center;color:var(--muted);margin-top:2px}
+.score-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.score-grid.two{grid-template-columns:repeat(2,1fr)}
+.scorebox{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:9px}
+.scorebox .k{font-size:12px;color:var(--muted);font-weight:800;letter-spacing:.08em;text-align:center}
+.scorebox input{width:100%;border:0;outline:0;background:transparent;color:var(--text);font-size:30px;font-weight:850;text-align:center;padding:2px 0}
+.scorebox.auto{border-style:dashed}
+.scorebox.auto .v{font-size:30px;font-weight:850;text-align:center;padding:4px 0}
+.scorebox.auto .sub{font-size:10px;color:var(--muted);text-align:center}
+.result{display:grid;grid-template-columns:1.2fr 1fr;gap:10px;align-items:stretch}
+.hf{background:var(--text);color:#111317;border-radius:16px;padding:14px}
+.hf .k{font-size:12px;font-weight:800;letter-spacing:.1em}
+.hf .v{font-size:42px;font-weight:900;letter-spacing:-.04em;margin-top:2px}
+.metrics{display:grid;gap:8px}
+.metric{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px}
+.metric .k{font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.metric .v{font-size:19px;font-weight:800;margin-top:2px}
+.notice{display:none;margin-top:10px;border:1px solid rgba(255,107,107,.5);background:rgba(255,107,107,.08);color:#ffd1d1;padding:10px 12px;border-radius:12px;font-weight:650}
+.notice.show{display:block}
+.actions{display:grid;grid-template-columns:2fr 1fr;gap:9px}
+.actions button,.ghost{border-radius:14px;padding:15px 12px;border:1px solid var(--line);font-weight:850}
+.primary{background:var(--text);color:#111317;border-color:var(--text)!important}
+.secondary{background:var(--panel2);color:var(--text)}
+.history-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.history-head h2{font-size:16px;margin:0}
+.ghost{padding:7px 10px;background:transparent;color:var(--muted);font-size:12px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{padding:9px 6px;border-bottom:1px solid var(--line);text-align:right;font-size:13px}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+.empty{color:var(--muted);padding:12px 2px;font-size:13px}
+.hidden{display:none!important}
+.footer-note{color:var(--muted);font-size:11px;line-height:1.45;padding:2px 3px 8px}
+@media (max-width:480px){
+  .app{padding-left:10px;padding-right:10px}
+  .card{border-radius:16px;padding:11px}
+  .result{grid-template-columns:1fr}
+  .hf .v{font-size:40px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>USPSA Hit Factor</h1>
+      <div class="version">Functional prototype · v0.2</div>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="label">Scoring mode</div>
+    <div class="segment" id="modeSeg">
+      <button data-mode="standard">Standard</button>
+      <button data-mode="fast" class="active">Fast</button>
+    </div>
+    <div style="height:10px"></div>
+    <div class="label">Power factor</div>
+    <div class="segment" id="pfSeg">
+      <button data-pf="minor" class="active">Minor</button>
+      <button data-pf="major">Major</button>
+    </div>
+  </section>
+
+  <section class="card" id="fastConfig">
+    <div class="label">Drill setup</div>
+    <div class="field">
+      <input id="maxHits" inputmode="numeric" pattern="[0-9]*" value="20" aria-label="Maximum scoring hits">
+      <small>Maximum scoring hits · persists between shooters</small>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="label">Score</div>
+
+    <div id="fastScore">
+      <div class="score-grid">
+        <div class="scorebox"><div class="k">C</div><input id="cFast" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+        <div class="scorebox"><div class="k">D</div><input id="dFast" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+        <div class="scorebox"><div class="k">M</div><input id="mFast" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+      </div>
+      <div style="height:9px"></div>
+      <div class="score-grid">
+        <div class="scorebox auto">
+          <div class="k">A</div><div class="v" id="aAuto">20</div><div class="sub">AUTO</div>
+        </div>
+        <div class="scorebox"><div class="k">NS</div><input id="nsFast" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+        <div class="scorebox"><div class="k">PROC</div><input id="pFast" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+      </div>
+    </div>
+
+    <div id="standardScore" class="hidden">
+      <div class="score-grid">
+        <div class="scorebox"><div class="k">A</div><input id="aStd" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+        <div class="scorebox"><div class="k">C</div><input id="cStd" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+        <div class="scorebox"><div class="k">D</div><input id="dStd" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+      </div>
+      <div style="height:9px"></div>
+      <div class="score-grid">
+        <div class="scorebox"><div class="k">M</div><input id="mStd" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+        <div class="scorebox"><div class="k">NS</div><input id="nsStd" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+        <div class="scorebox"><div class="k">PROC</div><input id="pStd" inputmode="numeric" pattern="[0-9]*" value="0"></div>
+      </div>
+    </div>
+
+    <div style="height:12px"></div>
+    <div class="label">Time</div>
+    <div class="field">
+      <input id="time" inputmode="decimal" placeholder="0.00" aria-label="Time in seconds">
+      <small>Seconds</small>
+    </div>
+
+    <div id="notice" class="notice"></div>
+  </section>
+
+  <section class="card">
+    <div class="result">
+      <div class="hf">
+        <div class="k">HIT FACTOR</div>
+        <div class="v" id="hf">—</div>
+      </div>
+      <div class="metrics">
+        <div class="metric"><div class="k">Net points</div><div class="v" id="netPts">—</div></div>
+        <div class="metric"><div class="k">Available points</div><div class="v" id="availPts">—</div></div>
+        <div class="metric"><div class="k">% available</div><div class="v" id="pctPts">—</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="actions">
+      <button class="primary" id="nextBtn">Next Shooter</button>
+      <button class="secondary" id="resetBtn">Reset Run</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="history-head">
+      <h2>Run history</h2>
+      <button class="ghost" id="clearHistory">Clear</button>
+    </div>
+    <div id="historyWrap"></div>
+  </section>
+
+  <div class="footer-note">
+    Prototype supports Comstock hit-factor calculation. Fast Mode treats unentered scoring hits as A hits and subtracts C, D and misses from the configured maximum-hit count. No-shoot and procedural penalties do not consume scoring hits.
+  </div>
+</div>
+
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  // Safe storage wrapper: direct-opened local HTML files on iOS/Safari can deny localStorage.
+  const store = {
+    get(key, fallback = null) {
+      try {
+        const v = window.localStorage.getItem(key);
+        return v === null ? fallback : v;
+      } catch (e) {
+        return fallback;
+      }
+    },
+    set(key, value) {
+      try { window.localStorage.setItem(key, value); } catch (e) {}
+    },
+    remove(key) {
+      try { window.localStorage.removeItem(key); } catch (e) {}
+    }
+  };
+
+  const toInt = el => {
+    const v = parseInt((el.value || '').trim(), 10);
+    return Number.isFinite(v) && v >= 0 ? v : 0;
+  };
+
+  const toNum = el => {
+    const raw = (el.value || '').trim().replace(',', '.');
+    const v = parseFloat(raw);
+    return Number.isFinite(v) && v >= 0 ? v : 0;
+  };
+
+  let history = [];
+  try {
+    const saved = JSON.parse(store.get('hf_history', '[]'));
+    history = Array.isArray(saved) ? saved : [];
+  } catch (e) {
+    history = [];
+  }
+
+  const state = {
+    mode: store.get('hf_mode', 'fast'),
+    pf: store.get('hf_pf', 'minor'),
+    history
+  };
+
+  const modeSeg = $('modeSeg');
+  const pfSeg = $('pfSeg');
+
+  function setActive(seg, dataName, value) {
+    seg.querySelectorAll('button').forEach(btn => {
+      btn.classList.toggle('active', btn.getAttribute(`data-${dataName}`) === value);
+    });
+  }
+
+  function setMode(mode) {
+    state.mode = mode === 'standard' ? 'standard' : 'fast';
+    store.set('hf_mode', state.mode);
+    setActive(modeSeg, 'mode', state.mode);
+    $('fastConfig').classList.toggle('hidden', state.mode !== 'fast');
+    $('fastScore').classList.toggle('hidden', state.mode !== 'fast');
+    $('standardScore').classList.toggle('hidden', state.mode !== 'standard');
+    calc();
+  }
+
+  function setPF(pf) {
+    state.pf = pf === 'major' ? 'major' : 'minor';
+    store.set('hf_pf', state.pf);
+    setActive(pfSeg, 'pf', state.pf);
+    calc();
+  }
+
+  modeSeg.querySelectorAll('button').forEach(btn => {
+    btn.type = 'button';
+    btn.addEventListener('click', () => setMode(btn.getAttribute('data-mode')));
+  });
+
+  pfSeg.querySelectorAll('button').forEach(btn => {
+    btn.type = 'button';
+    btn.addEventListener('click', () => setPF(btn.getAttribute('data-pf')));
+  });
+
+  document.querySelectorAll('input').forEach(el => {
+    el.addEventListener('focus', () => {
+      try { el.select(); } catch (e) {}
+    });
+    el.addEventListener('input', calc);
+    el.addEventListener('change', calc);
+  });
+
+  function currentScore() {
+    if (state.mode === 'fast') {
+      const max = toInt($('maxHits'));
+      const c = toInt($('cFast'));
+      const d = toInt($('dFast'));
+      const m = toInt($('mFast'));
+      return {
+        max,
+        a: max - c - d - m,
+        c, d, m,
+        ns: toInt($('nsFast')),
+        p: toInt($('pFast'))
+      };
+    }
+
+    return {
+      max: null,
+      a: toInt($('aStd')),
+      c: toInt($('cStd')),
+      d: toInt($('dStd')),
+      m: toInt($('mStd')),
+      ns: toInt($('nsStd')),
+      p: toInt($('pStd'))
+    };
+  }
+
+  function calc() {
+    const s = currentScore();
+    const t = toNum($('time'));
+    let err = '';
+
+    if (state.mode === 'fast') {
+      $('aAuto').textContent = String(Math.max(0, s.a));
+      if (s.max <= 0) {
+        err = 'Maximum scoring hits must be greater than zero.';
+      } else if (s.a < 0) {
+        err = `C + D + M exceeds the ${s.max}-hit maximum.`;
+      }
+    }
+
+    const cValue = state.pf === 'major' ? 4 : 3;
+    const dValue = state.pf === 'major' ? 2 : 1;
+
+    const hitPoints = (s.a * 5) + (s.c * cValue) + (s.d * dValue);
+    const penalties = (s.m + s.ns + s.p) * 10;
+    const net = hitPoints - penalties;
+
+    const scoringHits = state.mode === 'fast'
+      ? s.max
+      : (s.a + s.c + s.d + s.m);
+
+    const available = scoringHits * 5;
+    const pct = available > 0 ? (net / available) * 100 : null;
+    const hf = (!err && t > 0) ? (net / t) : null;
+
+    $('notice').textContent = err;
+    $('notice').classList.toggle('show', Boolean(err));
+    $('netPts').textContent = err ? '—' : String(net);
+    $('availPts').textContent = err ? '—' : String(available);
+    $('pctPts').textContent = (!err && pct !== null) ? `${pct.toFixed(1)}%` : '—';
+    $('hf').textContent = (hf !== null && Number.isFinite(hf)) ? hf.toFixed(4) : '—';
+
+    return {
+      valid: !err && t > 0,
+      score: s,
+      time: t,
+      net,
+      available,
+      pct,
+      hf
+    };
+  }
+
+  function clearRun() {
+    const ids = state.mode === 'fast'
+      ? ['cFast','dFast','mFast','nsFast','pFast']
+      : ['aStd','cStd','dStd','mStd','nsStd','pStd'];
+
+    ids.forEach(id => { $(id).value = '0'; });
+    $('time').value = '';
+    calc();
+  }
+
+  function saveRun() {
+    const r = calc();
+
+    if (!r.valid) {
+      if (r.time <= 0 && !$('notice').classList.contains('show')) {
+        $('notice').textContent = 'Enter a valid time before saving the run.';
+        $('notice').classList.add('show');
+      }
+      return;
+    }
+
+    const row = {
+      when: Date.now(),
+      mode: state.mode,
+      pf: state.pf,
+      ...r.score,
+      time: r.time,
+      net: r.net,
+      hf: r.hf
+    };
+
+    state.history.unshift(row);
+    state.history = state.history.slice(0, 50);
+    store.set('hf_history', JSON.stringify(state.history));
+    renderHistory();
+    clearRun();
+  }
+
+  function renderHistory() {
+    const wrap = $('historyWrap');
+
+    if (!state.history.length) {
+      wrap.innerHTML = '<div class="empty">No saved runs yet.</div>';
+      return;
+    }
+
+    const rows = state.history.map((r, i) =>
+      `<tr>
+        <td>${state.history.length - i}</td>
+        <td>${Number(r.net).toFixed(0)}</td>
+        <td>${Number(r.time).toFixed(2)}</td>
+        <td>${Number(r.hf).toFixed(4)}</td>
+      </tr>`
+    ).join('');
+
+    wrap.innerHTML =
+      `<table>
+        <thead>
+          <tr><th>Run</th><th>Points</th><th>Time</th><th>HF</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  $('nextBtn').type = 'button';
+  $('resetBtn').type = 'button';
+  $('clearHistory').type = 'button';
+
+  $('nextBtn').addEventListener('click', saveRun);
+  $('resetBtn').addEventListener('click', clearRun);
+  $('clearHistory').addEventListener('click', () => {
+    state.history = [];
+    store.remove('hf_history');
+    renderHistory();
+  });
+
+  setMode(state.mode);
+  setPF(state.pf);
+  renderHistory();
+  calc();
+})();
+</script>
+
+</body>
+</html>
