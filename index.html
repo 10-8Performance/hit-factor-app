@@ -23,7 +23,9 @@ h1{font-size:24px;line-height:1.05;margin:0;font-weight:800;letter-spacing:-.03e
 .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:14px;box-shadow:var(--shadow);margin-bottom:12px}
 .segment{display:grid;grid-template-columns:1fr 1fr;background:var(--panel2);border:1px solid var(--line);padding:4px;border-radius:13px;gap:4px}
 .segment button{border:0;border-radius:9px;padding:11px 12px;background:transparent;color:var(--muted);font-weight:750}
-.segment button.active{background:var(--text);color:#111317}
+.segment button.active{background:var(--text);color:#111317;box-shadow:inset 0 0 0 2px rgba(17,19,23,.18)}
+.segment button:focus-visible,.actions button:focus-visible,.ghost:focus-visible,input:focus-visible{outline:3px solid #ffffff;outline-offset:2px}
+.scorebox.invalid,.field.invalid{border-color:var(--danger);box-shadow:0 0 0 2px rgba(255,107,107,.14)}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .label{font-size:12px;color:var(--muted);font-weight:750;letter-spacing:.08em;text-transform:uppercase;margin:2px 0 7px}
 .field{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
@@ -40,7 +42,9 @@ h1{font-size:24px;line-height:1.05;margin:0;font-weight:800;letter-spacing:-.03e
 .result{display:grid;grid-template-columns:1.2fr 1fr;gap:10px;align-items:stretch}
 .hf{background:var(--text);color:#111317;border-radius:16px;padding:14px}
 .hf .k{font-size:12px;font-weight:800;letter-spacing:.1em}
-.hf .v{font-size:42px;font-weight:900;letter-spacing:-.04em;margin-top:2px}
+.hf .v{font-size:50px;font-weight:900;letter-spacing:-.04em;margin-top:2px}
+.hf .submetric{margin-top:8px;padding-top:8px;border-top:1px solid rgba(17,19,23,.18);font-size:13px;font-weight:750}
+.hf .submetric strong{font-size:20px}
 .metrics{display:grid;gap:8px}
 .metric{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px}
 .metric .k{font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.08em;text-transform:uppercase}
@@ -74,7 +78,7 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
   <header>
     <div>
       <h1>USPSA Hit Factor</h1>
-      <div class="version">Functional prototype · v0.2</div>
+      <div class="version">Functional prototype · v0.3</div>
     </div>
   </header>
 
@@ -136,8 +140,8 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
     <div style="height:12px"></div>
     <div class="label">Time</div>
     <div class="field">
-      <input id="time" inputmode="decimal" placeholder="0.00" aria-label="Time in seconds">
-      <small>Seconds</small>
+      <input id="time" inputmode="numeric" pattern="[0-9]*" placeholder="0.00" aria-label="Time in seconds">
+      <small>Enter digits only · 1842 becomes 18.42</small>
     </div>
 
     <div id="notice" class="notice"></div>
@@ -148,6 +152,7 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
       <div class="hf">
         <div class="k">HIT FACTOR</div>
         <div class="v" id="hf">—</div>
+        <div class="submetric">NET POINTS&nbsp;&nbsp;<strong id="netPtsPrimary">—</strong></div>
       </div>
       <div class="metrics">
         <div class="metric"><div class="k">Net points</div><div class="v" id="netPts">—</div></div>
@@ -162,6 +167,8 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
       <button class="primary" id="nextBtn">Next Shooter</button>
       <button class="secondary" id="resetBtn">Reset Run</button>
     </div>
+    <div style="height:9px"></div>
+    <button class="secondary" id="newDrillBtn" style="width:100%">New Drill</button>
   </section>
 
   <section class="card">
@@ -182,15 +189,12 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
 (() => {
   const $ = id => document.getElementById(id);
 
-  // Safe storage wrapper: direct-opened local HTML files on iOS/Safari can deny localStorage.
   const store = {
     get(key, fallback = null) {
       try {
         const v = window.localStorage.getItem(key);
         return v === null ? fallback : v;
-      } catch (e) {
-        return fallback;
-      }
+      } catch (e) { return fallback; }
     },
     set(key, value) {
       try { window.localStorage.setItem(key, value); } catch (e) {}
@@ -201,28 +205,26 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
   };
 
   const toInt = el => {
-    const v = parseInt((el.value || '').trim(), 10);
+    const v = parseInt((el.value || '').replace(/\D/g, ''), 10);
     return Number.isFinite(v) && v >= 0 ? v : 0;
   };
 
-  const toNum = el => {
-    const raw = (el.value || '').trim().replace(',', '.');
-    const v = parseFloat(raw);
+  function parseDisplayedTime() {
+    const v = parseFloat(($('time').value || '0').replace(',', '.'));
     return Number.isFinite(v) && v >= 0 ? v : 0;
-  };
+  }
 
   let history = [];
   try {
     const saved = JSON.parse(store.get('hf_history', '[]'));
     history = Array.isArray(saved) ? saved : [];
-  } catch (e) {
-    history = [];
-  }
+  } catch (e) {}
 
   const state = {
-    mode: store.get('hf_mode', 'fast'),
-    pf: store.get('hf_pf', 'minor'),
-    history
+    mode: store.get('hf_mode', 'fast') === 'standard' ? 'standard' : 'fast',
+    pf: store.get('hf_pf', 'minor') === 'major' ? 'major' : 'minor',
+    history,
+    timeDigits: ''
   };
 
   const modeSeg = $('modeSeg');
@@ -230,8 +232,14 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
 
   function setActive(seg, dataName, value) {
     seg.querySelectorAll('button').forEach(btn => {
-      btn.classList.toggle('active', btn.getAttribute(`data-${dataName}`) === value);
+      const active = btn.getAttribute(`data-${dataName}`) === value;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
+  }
+
+  function firstScoreField() {
+    return state.mode === 'fast' ? $('cFast') : $('aStd');
   }
 
   function setMode(mode) {
@@ -261,12 +269,80 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
     btn.addEventListener('click', () => setPF(btn.getAttribute('data-pf')));
   });
 
-  document.querySelectorAll('input').forEach(el => {
-    el.addEventListener('focus', () => {
-      try { el.select(); } catch (e) {}
+  document.querySelectorAll('input:not(#time)').forEach(el => {
+    el.addEventListener('focus', () => { try { el.select(); } catch (e) {} });
+    el.addEventListener('input', () => {
+      el.value = (el.value || '').replace(/\D/g, '');
+      calc();
     });
-    el.addEventListener('input', calc);
     el.addEventListener('change', calc);
+  });
+
+  const timeEl = $('time');
+
+  function formatTimeDigits() {
+    const digits = state.timeDigits.replace(/\D/g, '').slice(0, 8);
+    state.timeDigits = digits;
+    if (!digits) {
+      timeEl.value = '';
+      return;
+    }
+    const padded = digits.padStart(3, '0');
+    const whole = padded.slice(0, -2).replace(/^0+(?=\d)/, '') || '0';
+    const cents = padded.slice(-2);
+    timeEl.value = `${whole}.${cents}`;
+  }
+
+  timeEl.addEventListener('focus', () => {
+    try { timeEl.setSelectionRange(timeEl.value.length, timeEl.value.length); } catch (e) {}
+  });
+
+  timeEl.addEventListener('keydown', e => {
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      state.timeDigits = state.timeDigits.slice(0, -1);
+      formatTimeDigits();
+      calc();
+      return;
+    }
+    if (/^\d$/.test(e.key)) {
+      e.preventDefault();
+      state.timeDigits += e.key;
+      formatTimeDigits();
+      calc();
+      return;
+    }
+    if (['Tab','Enter','ArrowLeft','ArrowRight'].includes(e.key)) return;
+    if (e.key.length === 1) e.preventDefault();
+  });
+
+  timeEl.addEventListener('beforeinput', e => {
+    const type = e.inputType || '';
+    if (type === 'deleteContentBackward') {
+      e.preventDefault();
+      state.timeDigits = state.timeDigits.slice(0, -1);
+      formatTimeDigits();
+      calc();
+      return;
+    }
+    if (type.startsWith('insert') && e.data) {
+      const digits = e.data.replace(/\D/g, '');
+      e.preventDefault();
+      if (digits) {
+        state.timeDigits += digits;
+        formatTimeDigits();
+        calc();
+      }
+    }
+  });
+
+  timeEl.addEventListener('input', () => {
+    const rawDigits = (timeEl.value || '').replace(/\D/g, '');
+    if (rawDigits !== state.timeDigits) {
+      state.timeDigits = rawDigits;
+      formatTimeDigits();
+    }
+    calc();
   });
 
   function currentScore() {
@@ -283,7 +359,6 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
         p: toInt($('pFast'))
       };
     }
-
     return {
       max: null,
       a: toInt($('aStd')),
@@ -295,31 +370,37 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
     };
   }
 
+  function setFastInvalid(on) {
+    ['cFast','dFast','mFast'].forEach(id => {
+      const box = $(id).closest('.scorebox');
+      if (box) box.classList.toggle('invalid', on);
+    });
+    const maxBox = $('maxHits').closest('.field');
+    if (maxBox) maxBox.classList.toggle('invalid', on);
+  }
+
   function calc() {
     const s = currentScore();
-    const t = toNum($('time'));
+    const t = parseDisplayedTime();
     let err = '';
 
     if (state.mode === 'fast') {
       $('aAuto').textContent = String(Math.max(0, s.a));
-      if (s.max <= 0) {
-        err = 'Maximum scoring hits must be greater than zero.';
-      } else if (s.a < 0) {
-        err = `C + D + M exceeds the ${s.max}-hit maximum.`;
-      }
+      if (s.max <= 0) err = 'Maximum scoring hits must be greater than zero.';
+      else if (s.a < 0) err = `C + D + M exceeds the ${s.max}-hit maximum.`;
+      setFastInvalid(Boolean(err));
+    } else {
+      setFastInvalid(false);
     }
 
     const cValue = state.pf === 'major' ? 4 : 3;
     const dValue = state.pf === 'major' ? 2 : 1;
-
     const hitPoints = (s.a * 5) + (s.c * cValue) + (s.d * dValue);
     const penalties = (s.m + s.ns + s.p) * 10;
-    const net = hitPoints - penalties;
+    const rawNet = hitPoints - penalties;
+    const net = Math.max(0, rawNet);
 
-    const scoringHits = state.mode === 'fast'
-      ? s.max
-      : (s.a + s.c + s.d + s.m);
-
+    const scoringHits = state.mode === 'fast' ? s.max : (s.a + s.c + s.d + s.m);
     const available = scoringHits * 5;
     const pct = available > 0 ? (net / available) * 100 : null;
     const hf = (!err && t > 0) ? (net / t) : null;
@@ -327,29 +408,38 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
     $('notice').textContent = err;
     $('notice').classList.toggle('show', Boolean(err));
     $('netPts').textContent = err ? '—' : String(net);
+    $('netPtsPrimary').textContent = err ? '—' : String(net);
     $('availPts').textContent = err ? '—' : String(available);
     $('pctPts').textContent = (!err && pct !== null) ? `${pct.toFixed(1)}%` : '—';
     $('hf').textContent = (hf !== null && Number.isFinite(hf)) ? hf.toFixed(4) : '—';
 
-    return {
-      valid: !err && t > 0,
-      score: s,
-      time: t,
-      net,
-      available,
-      pct,
-      hf
-    };
+    return { valid: !err && t > 0, score: s, time: t, net, rawNet, available, pct, hf };
   }
 
-  function clearRun() {
+  function clearRun(focusFirst = false) {
     const ids = state.mode === 'fast'
       ? ['cFast','dFast','mFast','nsFast','pFast']
       : ['aStd','cStd','dStd','mStd','nsStd','pStd'];
 
     ids.forEach(id => { $(id).value = '0'; });
+    state.timeDigits = '';
     $('time').value = '';
     calc();
+
+    if (focusFirst) {
+      setTimeout(() => {
+        const target = firstScoreField();
+        target.focus();
+        try { target.select(); } catch (e) {}
+      }, 0);
+    }
+  }
+
+  function newDrill() {
+    $('maxHits').value = '20';
+    setPF('minor');
+    setMode('fast');
+    clearRun(true);
   }
 
   function saveRun() {
@@ -377,7 +467,7 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
     state.history = state.history.slice(0, 50);
     store.set('hf_history', JSON.stringify(state.history));
     renderHistory();
-    clearRun();
+    clearRun(true);
   }
 
   function renderHistory() {
@@ -391,27 +481,35 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
     const rows = state.history.map((r, i) =>
       `<tr>
         <td>${state.history.length - i}</td>
-        <td>${Number(r.net).toFixed(0)}</td>
+        <td>${Number(r.a || 0)}</td>
+        <td>${Number(r.c || 0)}</td>
+        <td>${Number(r.d || 0)}</td>
+        <td>${Number(r.m || 0)}</td>
         <td>${Number(r.time).toFixed(2)}</td>
+        <td>${Number(r.net).toFixed(0)}</td>
         <td>${Number(r.hf).toFixed(4)}</td>
       </tr>`
     ).join('');
 
     wrap.innerHTML =
-      `<table>
-        <thead>
-          <tr><th>Run</th><th>Points</th><th>Time</th><th>HF</th></tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      `<div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr><th>Run</th><th>A</th><th>C</th><th>D</th><th>M</th><th>Time</th><th>Pts</th><th>HF</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
   }
 
   $('nextBtn').type = 'button';
   $('resetBtn').type = 'button';
+  $('newDrillBtn').type = 'button';
   $('clearHistory').type = 'button';
 
   $('nextBtn').addEventListener('click', saveRun);
-  $('resetBtn').addEventListener('click', clearRun);
+  $('resetBtn').addEventListener('click', () => clearRun(true));
+  $('newDrillBtn').addEventListener('click', newDrill);
   $('clearHistory').addEventListener('click', () => {
     state.history = [];
     store.remove('hf_history');
