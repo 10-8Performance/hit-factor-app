@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#111317">
+<link rel="manifest" href="./manifest.webmanifest">
 <title>USPSA Hit Factor — Prototype</title>
 <style>
 :root{
@@ -82,7 +83,7 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
   <header>
     <div>
       <h1>USPSA Hit Factor</h1>
-      <div class="version">Functional prototype · v0.4</div>
+      <div class="version">Functional prototype · v0.5</div>
     </div>
   </header>
 
@@ -535,6 +536,16 @@ th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08
   renderHistory();
   calc();
 })();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch((error) => {
+      console.error('Service worker registration failed:', error);
+    });
+  });
+}
 </script>
 
 </body>
